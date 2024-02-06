@@ -5,7 +5,7 @@ import requests
 
 # URL вашего API
 def create_user(username, first_name, last_name, tg_id):
-    create_user_req = 'http://127.0.0.1:8000/api/users/create/'
+    create_user_req = 'http://134.0.118.29:8000/api/users/create/'
     user_data = {
         'username': str(username),
         'first_name': str(first_name),
@@ -21,7 +21,7 @@ def create_user(username, first_name, last_name, tg_id):
 
 
 def get_users():
-    api_url = 'http://127.0.0.1:8000/api/users/'
+    api_url = 'http://134.0.118.29:8000/api/users/'
     response = requests.get(api_url)
     return response.json()
 
@@ -29,7 +29,7 @@ def get_users():
 
 # URL for creating a new ChatMessage object
 def create_chat_message(user_id, message_id, message_datetime, message_sender, text):
-    create_msg_req = 'http://127.0.0.1:8000/api/messages/create/'
+    create_msg_req = 'http://134.0.118.29:8000/api/messages/create/'
 
     new_message_data = {
         'user': user_id,  
@@ -46,7 +46,7 @@ def create_chat_message(user_id, message_id, message_datetime, message_sender, t
 
 
 def get_messages():
-    get_msgs_req = 'http://127.0.0.1:8000/api/messages/' #?chat_id=x
+    get_msgs_req = 'http://134.0.118.29:8000/api/messages/' #?chat_id=x
 
     get_response = requests.get(get_msgs_req)
 
