@@ -6,12 +6,14 @@ from config import *
 from keyboards import *
 from save_msg import *
 from fsm import *
-from api import read_root
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from datetime import datetime
+from misc.throttling import rate_limit
+from api import read_root
 import asyncio
 import aiohttp
 import os
+import middlewares
 
 
 logging.basicConfig(level=logging.INFO)
@@ -20,7 +22,7 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(bot, storage=storage)
-
+middlewares.setup(dp)
 
 
 async def download_photo(file_id, username):
@@ -98,27 +100,30 @@ async def add_admins(message: types.Message):
 CRM
 """
 
-
+@rate_limit(limit=10, key='/start')
 @dp.message_handler(commands=['start'], state='*')
 async def send_welcome(message: types.Message, state: FSMContext):
     await state.reset_state()
-    msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(message.from_user.id, message.message_id, msg_date, 'user', '/start')
     await get_and_download_profile_photo(message.from_user.id)
     create_user(message.from_user.username, message.from_user.first_name, message.from_user.last_name, message.from_user.id)
+    msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
+    await create_chat_message(message.from_user.id, message.message_id, msg_date, 'user', '/start')
     msg = """
     Welcome to our exclusive trading community! Here you get access to PRO trading signals tailored for Quotex and Pocket Option platforms. Maximize your profits now - choose your platform:
     """
-    #create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
     await message.answer(msg, reply_markup=chain_1())
 
+
+@rate_limit(limit=10, key='pocket')
 @dp.callback_query_handler(lambda callback: callback.data == 'pocket')
 async def chain_2_pocket(callback: types.CallbackQuery):
     await callback.answer()
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'Pocket Option')
+    print("IDDIDIID ", callback.from_user.id)
+    await create_chat_message(user_id=callback.from_user.id, message_id=callback.id, message_datetime=msg_date, message_sender='user', text='Pocket Option')
 
     msg = """
     The usual price for access to our channel and signals is $300 per month. 
@@ -139,49 +144,52 @@ async def chain_2_pocket(callback: types.CallbackQuery):
     Be sure to take advantage of this limited-time offer before it ends!    
     """
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
     await callback.message.answer(msg, reply_markup=chain_2_pocket_kb())
 
-
+@rate_limit(limit=10, key='free_acces_pocket')
 @dp.callback_query_handler(lambda callback: callback.data == 'free_acces_pocket')
 async def chain_3_pocket_free(callback: types.CallbackQuery):
     await callback.answer() 
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'Get Free Access')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'Get Free Access')
     msg = """
     Great, you've chosen Pocket Option! To access our exclusive Pocket Option signals channel, you need an account registered via our link. Do you already have a Pocket Option account?
     """
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
     await callback.message.answer(msg, reply_markup=chain_3_pocket_check_for_acc())
 
+@rate_limit(limit=10, key='sub_pocket')
 @dp.callback_query_handler(lambda callback: callback.data == 'sub_pocket')
 async def chain_3_pocket_free(callback: types.CallbackQuery):
     await callback.answer()
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'Purchase Subscription')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'Purchase Subscription')
     msg = """Fantastic, you've selected the Premium Monthly Subscription! 🎉 This is the best way to get instant access to all of our exclusive Pocket Option trading signals.
 Please wait just a moment while we connect you with a membership manager to complete your purchase. This should only take a few minutes.
 
 We appreciate your interest in our premium service - the manager will contact you ASAP to get your subscription activated right away!"""
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
+    await callback.message.answer(msg)
     # send to nicky
     for admin in ADMINS:
-        await bot.send_message(admin, f"англ платно\nUser @{callback.message.from_user.username} - {callback.message.from_user.id} wants Premium Monthly Subscription!")
+        await bot.send_message(admin, f"англ платно\nUser @{callback.from_user.username} - {callback.from_user.id} wants Premium Monthly Subscription!")
 
-@dp.callback_query_handler(lambda callback: callback.data == 'no_pocket')
-async def chain_4_pocket_no_acc(callback: types.CallbackQuery):
+@rate_limit(limit=10, key='no_pocket')
+@dp.callback_query_handler(lambda callback: callback.data == 'no_pocket', state="*")
+async def chain_4_pocket_no_acc(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'No, I need to create a Pocket Option account')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'No, I need to create a Pocket Option account')
     msg = """No worries, we've got you covered! 
     After registering, please send us your trading account ID.
     """
     registration_link_pocket_kb = types.InlineKeyboardMarkup()
     registration_link_pocket_kb.add(types.InlineKeyboardButton(text="Registration Link", url='https://pocket.click/register?utm_source=affiliate&a=CKmh6gq01Lo9Ff&ac=fond'))
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
     await callback.message.answer(msg, reply_markup=registration_link_pocket_kb)
     await asyncio.sleep(1)
     msg = """ID Located in the profile section.
@@ -189,20 +197,22 @@ async def chain_4_pocket_no_acc(callback: types.CallbackQuery):
     Send id without spaces or letters. Only numbers
     """
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
+    await state.set_state(GetIdPocket.getting_id)
     await callback.message.answer(msg)
 
 
+@rate_limit(limit=10, key='have_pocket')
 @dp.callback_query_handler(lambda callback: callback.data == 'have_pocket', state="*")
 async def chain_4_pocket_have_acc(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
 
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'Yes, I have a Pocket Option account')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'Yes, I have a Pocket Option account')
     msg = """Awesome! Please send us your trading account ID. We'll verify with the account manager to ensure your account is linked to our partnership program. If you have any questions, we're always here to assist you! 🙏
     """
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
     await callback.message.answer(msg)
     await asyncio.sleep(1)
     msg = """ID Located in the profile section.
@@ -212,14 +222,15 @@ async def chain_4_pocket_have_acc(callback: types.CallbackQuery, state: FSMConte
     Send id without spaces or letters. Only numbers
     """
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
-    await state.set_state(GetId.getting_id)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
+    await state.set_state(GetIdPocket.getting_id)
     await callback.message.answer(msg)
 
-@dp.message_handler(state=GetId.getting_id)
+@dp.message_handler(state=GetIdPocket.getting_id)
+@rate_limit(limit=10, key='chain_5_check_id_pocket')
 async def chain_5_check_id_pocket(message: types.Message, state: FSMContext):
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(message.from_user.id, message.message_id, msg_date, 'user', message.text)
+    await create_chat_message(message.from_user.id, message.message_id, msg_date, 'user', message.text)
     result = await read_root('AffiliatePocketBot', message.text)
 
     
@@ -235,7 +246,7 @@ Do you agree to this condition?"""
         kb.add(types.InlineKeyboardButton('no', callback_data='no_not_found_pocket'))
 
         msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
+        await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
         await message.answer(msg, reply_markup=kb)
         await state.reset_state()
     elif result == {'result': 'less'}:
@@ -250,7 +261,7 @@ Please click the button below once you have deposited funds to reach the $30 min
         kb = types.InlineKeyboardMarkup(row_width=1)
         kb.add(types.InlineKeyboardButton('Balance Funded', callback_data=f'balance_5_pocket_{message.text}'))
         msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
+        await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
         await message.answer(msg, reply_markup=kb)
         await state.reset_state()
 
@@ -258,20 +269,21 @@ Please click the button below once you have deposited funds to reach the $30 min
         msg = """Thank you for your trust. Please stand by as our manager will soon grant you access to the Private Club."""
         await state.reset_state()
         msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
+        await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
         for admin in ADMINS:
             await bot.send_message(admin, f'Надо проверить и добавить в группу\nUser @{message.from_user.username} - {message.from_user.id}') 
     elif result == {'result': 'error'}:
         msg = """Input ID correctly please (use numbers only)"""
         msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
+        await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
         await message.answer(msg)
 
+@rate_limit(limit=10, key='yes_not_found_pocket')
 @dp.callback_query_handler(lambda callback: callback.data == 'yes_not_found_pocket')
 async def agree_and_reg_pocket(callback:types.CallbackQuery):
     await callback.answer()
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'Yes')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'Yes')
     msg = """Here is the registration link 👇
 
 After registering, please send us the ID of your trading account.
@@ -280,14 +292,15 @@ We are here to help guide you through every step! 😊"""
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton('Registration Link', url='https://pocket.click/register?utm_source=affiliate&a=CKmh6gq01Lo9Ff&ac=fond'))
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
     await callback.message.answer(msg, reply_markup=kb)
 
+@rate_limit(limit=10, key='no_not_found_pocket')
 @dp.callback_query_handler(lambda callback: callback.data == 'no_not_found_pocket')
 async def answer_not_agree_pocket(callback: types.CallbackQuery):
     await callback.answer()
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'no')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'no')
     msg = """
 We understand your position. However, registering via our affiliate link is truly important to get full support from our team when working with this broker.
 
@@ -295,16 +308,19 @@ Let's discuss any concerns you may have about registering - perhaps we can find 
 
 We also recommend subscribing to our channel with free test signals, so you can already start getting familiar with our community."""
     kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton('Our Signals Channel', url="https://t.me/foundation_co"))
+    kb.add(types.InlineKeyboardButton('Our Signals Channel', url="https://pocket.click/register?utm_source=affiliate&a=CKmh6gq01Lo9Ff&ac=fond"))
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
     await callback.message.answer(msg, reply_markup=kb)
 
+
+
+@rate_limit(limit=10, key='balance_5_pocket')
 @dp.callback_query_handler(lambda callback: callback.data.startswith('balance_5_pocket'))
 async def check_balance_pocket(callback: types.CallbackQuery):
     await callback.answer()
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'Balance Funded')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'Balance Funded')
     id = callback.data.replace('balance_5_pocket_', '')
     res = await read_root('AffiliatePocketBot', id)
     if res == {'result': 'less'}:
@@ -316,14 +332,14 @@ Once the money arrives in your account, please click the button below:"""
         kb = types.InlineKeyboardMarkup()
         kb.add(types.InlineKeyboardButton(text="Funds Received in Account", callback_data=f"balance_5_pocket_{id}"))
         msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+        await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
         await callback.message.answer(msg, reply_markup=kb)
     elif res == {'result': 'more'}:
         msg = """Thank you for your trust. Please stand by as our manager will soon grant you access to the Private Club."""
         msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+        await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
         for admin in ADMINS:
-            await bot.send_message(admin, f'Надо проверить и добавить в группу\nUser @{callback.message.from_user.username} - {callback.message.from_user.id}')
+            await bot.send_message(admin, f'Надо проверить и добавить в группу\nUser @{callback.from_user.username} - {callback.from_user.id}')
     
 
 
@@ -399,12 +415,12 @@ Once the money arrives in your account, please click the button below:"""
 
 
 
-
+@rate_limit(limit=10, key='quotex')
 @dp.callback_query_handler(lambda callback: callback.data == 'quotex')
 async def chain_2_quotex(callback: types.CallbackQuery):
     await callback.answer()
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'Quotex')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'Quotex')
 
     msg = """The usual price for access to our channel and signals is $300 per month. 
 
@@ -423,49 +439,53 @@ And we'll grant you access to our premium channel with real-time signals from ex
 
 Be sure to take advantage of this limited-time offer before it ends!"""
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
     await callback.message.answer(msg, reply_markup=chain_2_quotex_kb())
 
-
+@rate_limit(limit=10, key='free_acces_quotex')
 @dp.callback_query_handler(lambda callback: callback.data == 'free_acces_quotex')
 async def chain_3_quotex_free(callback: types.CallbackQuery):
     await callback.answer() 
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'Get Free Access')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'Get Free Access')
     msg = """
     Great, you've chosen Quotex! To access our exclusive Pocket Option signals channel, you need an account registered via our link. Do you already have a Quotex account?
     """
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
     await callback.message.answer(msg, reply_markup=chain_3_quotex_check_for_acc())
 
+@rate_limit(limit=10, key='sub_quotex')
 @dp.callback_query_handler(lambda callback: callback.data == 'sub_quotex')
 async def chain_3_quotex_free(callback: types.CallbackQuery):
     await callback.answer()
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'Purchase Subscription')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'Purchase Subscription')
     msg = """Fantastic, you've selected the Premium Monthly Subscription! 🎉 This is the best way to get instant access to all of our exclusive Quotex trading signals.
 Please wait just a moment while we connect you with a membership manager to complete your purchase. This should only take a few minutes.
 
 We appreciate your interest in our premium service - the manager will contact you ASAP to get your subscription activated right away!"""
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
+    await callback.message.answer(msg)
     # send to nicky
     for admin in ADMINS:
-        await bot.send_message(admin, f"англ платно\nUser @{callback.message.from_user.username} - {callback.message.from_user.id} wants Premium Monthly Subscription!")
+        await bot.send_message(admin, f"англ платно\nUser @{callback.from_user.username} - {callback.from_user.id} wants Premium Monthly Subscription!")
 
-@dp.callback_query_handler(lambda callback: callback.data == 'no_quotex')
-async def chain_4_quotex_no_acc(callback: types.CallbackQuery):
+
+@rate_limit(limit=10, key='no_quotex')
+@dp.callback_query_handler(lambda callback: callback.data == 'no_quotex', state='*')
+async def chain_4_quotex_no_acc(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'No, I need to create a Quotex account')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'No, I need to create a Quotex account')
     msg = """No worries, we've got you covered! 
     After registering, please send us your trading account ID.
     """
     registration_link_quotex_kb = types.InlineKeyboardMarkup()
     registration_link_quotex_kb.add(types.InlineKeyboardButton(text="Registration Link", url='https://broker-qx.pro/sign-up/?lid=452677'))
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
     await callback.message.answer(msg, reply_markup=registration_link_quotex_kb)
     await asyncio.sleep(1)
     msg = """ID Located in the profile section.
@@ -473,20 +493,21 @@ async def chain_4_quotex_no_acc(callback: types.CallbackQuery):
     Send id without spaces or letters. Only numbers
     """
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await set.state
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
     await callback.message.answer(msg)
 
-
+@rate_limit(limit=10, key='have_quotex')
 @dp.callback_query_handler(lambda callback: callback.data == 'have_quotex', state="*")
 async def chain_4_quotex_have_acc(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
 
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'Yes, I have a Quotex account')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'Yes, I have a Quotex account')
     msg = """Awesome! Please send us your trading account ID. We'll verify with the account manager to ensure your account is linked to our partnership program. If you have any questions, we're always here to assist you! 🙏
     """
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
     await callback.message.answer(msg)
     await asyncio.sleep(1)
     msg = """ID Located in the profile section.
@@ -496,14 +517,16 @@ async def chain_4_quotex_have_acc(callback: types.CallbackQuery, state: FSMConte
     Send id without spaces or letters. Only numbers
     """
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
-    await state.set_state(GetId.getting_id)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
+    await state.set_state(GetIdQuotex.getting_id)
     await callback.message.answer(msg)
 
-@dp.message_handler(state=GetId.getting_id)
+
+@rate_limit(limit=10, key='chain_5_check_id_quotex')
+@dp.message_handler(state=GetIdQuotex.getting_id)
 async def chain_5_check_id_quotex(message: types.Message, state: FSMContext):
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(message.from_user.id, message.message_id, msg_date, 'user', message.text)
+    await create_chat_message(message.from_user.id, message.message_id, msg_date, 'user', message.text)
     result = await read_root('QuotexPartnerBot', message.text)
 
     
@@ -519,7 +542,7 @@ Do you agree to this condition?"""
         kb.add(types.InlineKeyboardButton('no', callback_data='no_not_found_quotex'))
 
         msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
+        await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
         await message.answer(msg, reply_markup=kb)
         await state.reset_state()
     elif result == {'result': 'less'}:
@@ -534,7 +557,7 @@ Please click the button below once you have deposited funds to reach the $30 min
         kb = types.InlineKeyboardMarkup(row_width=1)
         kb.add(types.InlineKeyboardButton('Balance Funded', callback_data=f'balance_5_quotex_{message.text}'))
         msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
+        await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
         await message.answer(msg, reply_markup=kb)
         await state.reset_state()
 
@@ -542,20 +565,22 @@ Please click the button below once you have deposited funds to reach the $30 min
         msg = """Thank you for your trust. Please stand by as our manager will soon grant you access to the Private Club."""
         await state.reset_state()
         msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
+        await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
         for admin in ADMINS:
             await bot.send_message(admin, f'Надо проверить и добавить в группу\nUser @{message.from_user.username} - {message.from_user.id}') 
     elif result == {'result': 'error'}:
         msg = """Input ID correctly please (use numbers only)"""
         msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
+        await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
         await message.answer(msg)
 
+
+@rate_limit(limit=10, key='yes_not_found_quotex')
 @dp.callback_query_handler(lambda callback: callback.data == 'yes_not_found_quotex')
 async def agree_and_reg_quotex(callback:types.CallbackQuery):
     await callback.answer()
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'Yes')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'Yes')
     msg = """Here is the registration link 👇
 
 After registering, please send us the ID of your trading account.
@@ -564,14 +589,15 @@ We are here to help guide you through every step! 😊"""
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton('Registration Link', url='https://broker-qx.pro/sign-up/?lid=452677'))
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
     await callback.message.answer(msg, reply_markup=kb)
 
+@rate_limit(limit=10, key='no_not_found_quotex')
 @dp.callback_query_handler(lambda callback: callback.data == 'no_not_found_quotex')
 async def answer_not_agree_quotex(callback: types.CallbackQuery):
     await callback.answer()
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'no')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'no')
     msg = """
 We understand your position. However, registering via our affiliate link is truly important to get full support from our team when working with this broker.
 
@@ -579,16 +605,17 @@ Let's discuss any concerns you may have about registering - perhaps we can find 
 
 We also recommend subscribing to our channel with free test signals, so you can already start getting familiar with our community."""
     kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton('Our Signals Channel', url="https://t.me/foundation_co"))
+    kb.add(types.InlineKeyboardButton('Our Signals Channel', url="https://t.me/quotex_pocketoption_iqoption_sig"))
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
     await callback.message.answer(msg, reply_markup=kb)
 
+@rate_limit(limit=10, key='balance_5_quotex')
 @dp.callback_query_handler(lambda callback: callback.data.startswith('balance_5_quotex'))
 async def check_balance_quotex(callback: types.CallbackQuery):
     await callback.answer()
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'user', 'Balance Funded')
+    await create_chat_message(callback.from_user.id, callback.id, msg_date, 'user', 'Balance Funded')
     id = callback.data.replace('balance_5_quotex_', '')
     res = await read_root('QuotexPartnerBot', id)
     if res == {'result': 'less'}:
@@ -600,14 +627,14 @@ Once the money arrives in your account, please click the button below:"""
         kb = types.InlineKeyboardMarkup()
         kb.add(types.InlineKeyboardButton(text="Funds Received in Account", callback_data=f"balance_5_quotex_{id}"))
         msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+        await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
         await callback.message.answer(msg, reply_markup=kb)
     elif res == {'result': 'more'}:
         msg = """Thank you for your trust. Please stand by as our manager will soon grant you access to the Private Club."""
         msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-        create_chat_message(callback.message.from_user.id, callback.message.message_id, msg_date, 'bot', msg)
+        await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
         for admin in ADMINS:
-            await bot.send_message(admin, f'Надо проверить и добавить в группу\nUser @{callback.message.from_user.username} - {callback.message.from_user.id}')
+            await bot.send_message(admin, f'Надо проверить и добавить в группу\nUser @{callback.from_user.username} - {callback.from_user.id}')
     
 
 

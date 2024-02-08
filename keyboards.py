@@ -13,11 +13,11 @@ def chain_1():
     return chain_1_kb
 
 def chain_2_pocket_kb():
-    chain_2_pocket_kb = types.InlineKeyboardMarkup(row_width=2)
-    chain_2_pocket_kb.add(types.InlineKeyboardButton(text="💎 Get Free Access", callback_data='free_acces_pocket'))
-    chain_2_pocket_kb.add(types.InlineKeyboardButton(text="💰 Purchase Subscription", callback_data='sub_pocket'))
+    chain_2_pocket_kb_kb = types.InlineKeyboardMarkup(row_width=2)
+    chain_2_pocket_kb_kb.add(types.InlineKeyboardButton(text="💎 Get Free Access", callback_data='free_acces_pocket'))
+    chain_2_pocket_kb_kb.add(types.InlineKeyboardButton(text="💰 Purchase Subscription", callback_data='sub_pocket'))
 
-    return chain_2_pocket_kb
+    return chain_2_pocket_kb_kb
 
 
 def chain_3_pocket_check_for_acc():
@@ -31,11 +31,11 @@ def chain_3_pocket_check_for_acc():
 
 
 def chain_2_quotex_kb():
-    chain_2_quotex_kb = types.InlineKeyboardMarkup(row_width=2)
-    chain_2_quotex_kb.add(types.InlineKeyboardButton(text="💎 Get Free Access", callback_data='free_acces_quotex'))
-    chain_2_quotex_kb.add(types.InlineKeyboardButton(text="💰 Purchase Subscription", callback_data='sub_quotex'))
+    chain_2_quotex_kb_kb = types.InlineKeyboardMarkup(row_width=2)
+    chain_2_quotex_kb_kb.add(types.InlineKeyboardButton(text="💎 Get Free Access", callback_data='free_acces_quotex'))
+    chain_2_quotex_kb_kb.add(types.InlineKeyboardButton(text="💰 Purchase Subscription", callback_data='sub_quotex'))
 
-    return chain_2_pocket_kb
+    return chain_2_quotex_kb_kb
 
 
 def chain_3_quotex_check_for_acc():
