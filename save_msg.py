@@ -14,10 +14,13 @@ async def get_captcha_value(tg_id):
                 if response.status == 200:
                     data = await response.json()
                     print(f"Captcha value for user {tg_id}: {data['captcha']}")
+                    return data['captcha']
                 else:
                     print(f"Error: {response.status}")
+                    return False
         except aiohttp.ClientError as e:
             print(f"Error sending request: {e}")
+            return False
 
 
 async def set_captcha_true(tg_id):
