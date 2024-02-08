@@ -111,7 +111,6 @@ async def send_welcome(message: types.Message, state: FSMContext):
     msg = """
     Welcome to our exclusive trading community! Here you get access to PRO trading signals tailored for Quotex and Pocket Option platforms. Maximize your profits now - choose your platform:
     """
-    await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
     msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
     await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
     await message.answer(msg, reply_markup=chain_1())
@@ -315,7 +314,7 @@ We also recommend subscribing to our channel with free test signals, so you can 
 
 
 
-@rate_limit(limit=10, key='balance_5_pocket')
+@rate_limit(limit=10, key='check_balance_pocket')
 @dp.callback_query_handler(lambda callback: callback.data.startswith('balance_5_pocket'))
 async def check_balance_pocket(callback: types.CallbackQuery):
     await callback.answer()
@@ -610,7 +609,7 @@ We also recommend subscribing to our channel with free test signals, so you can 
     await create_chat_message(callback.from_user.id, callback.id, msg_date, 'bot', msg)
     await callback.message.answer(msg, reply_markup=kb)
 
-@rate_limit(limit=10, key='balance_5_quotex')
+@rate_limit(limit=10, key='check_balance_quotex')
 @dp.callback_query_handler(lambda callback: callback.data.startswith('balance_5_quotex'))
 async def check_balance_quotex(callback: types.CallbackQuery):
     await callback.answer()
