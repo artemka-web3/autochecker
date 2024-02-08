@@ -6,3 +6,7 @@ class GetIdPocket(StatesGroup):
 
 class GetIdQuotex(StatesGroup):
     getting_id = State()
+
+class PassCaptcha(StatesGroup):
+    make_captcha = State()
+    get_input = State()

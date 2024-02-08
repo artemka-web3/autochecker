@@ -2,7 +2,6 @@
 import asyncio
 
 from aiogram import Bot, Dispatcher, executor, types
-from aiogram.contrib.fsm_storage.redis import RedisStorage2
 from aiogram.dispatcher import DEFAULT_RATE_LIMIT
 from aiogram.dispatcher.handler import CancelHandler, current_handler
 from aiogram.dispatcher.middlewares import BaseMiddleware
@@ -183,6 +182,6 @@ class ThrottlingMiddleware(BaseMiddleware):
         # If current message is not the last with the current key - do not send a message
         if thr.exceeded_count == throttled.exceeded_count:
             if isinstance(obj, types.Message):
-                await obj.reply('Unlocked.')
+                await obj.reply('Wait 30 seconds.')
             elif isinstance(obj, types.CallbackQuery):
-                await obj.message.reply('Unlocked.')
+                await obj.message.reply('Wait 30 seconds.')

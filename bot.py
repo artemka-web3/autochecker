@@ -10,6 +10,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from datetime import datetime
 from misc.throttling import rate_limit
 from api import read_root
+import captcha_gen as captcha_gen
 import asyncio
 import aiohttp
 import os
@@ -102,18 +103,51 @@ CRM
 
 @rate_limit(limit=10, key='/start')
 @dp.message_handler(commands=['start'], state='*')
-async def send_welcome(message: types.Message, state: FSMContext):
+async def send_welcome_and_captha(message: types.Message, state: FSMContext):
     await state.reset_state()
     await get_and_download_profile_photo(message.from_user.id)
     create_user(message.from_user.username, message.from_user.first_name, message.from_user.last_name, message.from_user.id)
-    msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    await create_chat_message(message.from_user.id, message.message_id, msg_date, 'user', '/start')
-    msg = """
-    Welcome to our exclusive trading community! Here you get access to PRO trading signals tailored for Quotex and Pocket Option platforms. Maximize your profits now - choose your platform:
-    """
-    msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
-    await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
-    await message.answer(msg, reply_markup=chain_1())
+
+    captcha_verified = await get_captcha_value(message.from_user.id)
+    captcha_verified
+    if not captcha_verified or captcha_verified['captcha'] == False:
+        captcha_code = captcha_gen.gen_captcha(message.from_user.username)
+        print(captcha_code)
+        with open(f'{message.from_user.username}_captcha.png', 'rb') as pic:
+            await bot.send_photo(chat_id=message.from_user.id, photo=pic, caption="Input what do you see to pass captcha!")
+            os.system(f'rm {message.from_user.username}_captcha.png')
+        await state.set_state(PassCaptcha.make_captcha)
+        await state.update_data(captcha_code = captcha_code)
+        await state.set_state(PassCaptcha.get_input)
+    else:
+        msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
+        await create_chat_message(message.from_user.id, message.message_id, msg_date, 'user', '/start')
+        msg = """
+        Welcome to our exclusive trading community! Here you get access to PRO trading signals tailored for Quotex and Pocket Option platforms. Maximize your profits now - choose your platform:
+        """
+        msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
+        await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
+        await message.answer(msg, reply_markup=chain_1())
+
+
+@rate_limit(limit=10, key='/start')
+@dp.message_handler(state=PassCaptcha.get_input)
+async def pass_captcha(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        if data['captcha_code'].lower() == message.text or data['captcha_code'] == message.text:
+            await set_captcha_true(message.from_user.id)
+            await message.answer("Congratulations, you have passed captcha")
+            await state.reset_state()
+            msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
+            await create_chat_message(message.from_user.id, message.message_id, msg_date, 'user', '/start')
+            msg = """
+            Welcome to our exclusive trading community! Here you get access to PRO trading signals tailored for Quotex and Pocket Option platforms. Maximize your profits now - choose your platform:
+            """
+            msg_date = (datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
+            await create_chat_message(message.from_user.id, message.message_id, msg_date, 'bot', msg)
+            await message.answer(msg, reply_markup=chain_1())
+        else:
+            await message.answer('You did not pass captcha!( Try again or call /start to get new captcha')
 
 
 @rate_limit(limit=10, key='pocket')
