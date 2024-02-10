@@ -182,6 +182,6 @@ class ThrottlingMiddleware(BaseMiddleware):
         # If current message is not the last with the current key - do not send a message
         if thr.exceeded_count == throttled.exceeded_count:
             if isinstance(obj, types.Message):
-                await obj.reply('Wait 30 seconds.')
+                await obj.reply('Wait 30 seconds. And then call /start')
             elif isinstance(obj, types.CallbackQuery):
-                await obj.message.reply('Wait 30 seconds.')
+                await obj.message.reply('Wait 30 seconds. And then call /start')
